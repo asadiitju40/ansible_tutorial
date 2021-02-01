@@ -1,0 +1,113 @@
+---
+- hosts: all
+  become: true
+  pre_tasks:
+
+  - name: update repo cache (CentOS)
+    tags: always
+    dnf:
+      update_cache: yes
+    changed_when: false
+    when: ansible_distribution == "CentOS"
+
+  - name: update repo cache (Ubuntu)
+    tags: always
+    apt:
+      update_cache: yes
+    changed_when: false  
+    when: ansible_distribution == "Ubuntu"
+
+- hosts: all
+  become: true
+  tasks:
+  
+  - name: add ssh key for simone
+    tags: always
+    authorized_key:
+      user: asad
+      key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDGI5SxcakZv1ERqzVcQ3VN5+shaE/BoqHK1R+ZUVsLVmnCJpSRkbBlcQ1YWtZqcafqqqFwoDqHj7obaFPMFA7VMshdd4tVp4eg26XwPJ/i+GunG2H5viib+UbwrnnKkmuZhzIvbo3JvN+F1RQXP5HrI1wAMkfvyW/KBRhbtkln4BwaU4J40ZT3vFhD0iAKgXcOiJnF5G19T3+Vxe2bHl3w5rdrzLTDRsdIuBjhSLswSV7YUs3r4VaqC73NslT0xtad/z+IaG7rpSYJegCpjOIHFxDzGNsIJ+MQ+j93th3PekVj+NIN48ynw+jNfZwhemjYADu3KeXQ9ZxBdUPq7BdwrnqCDYPD56htS1oKZP7LWt1kTFu06YEZp43lo/ism7Vs/N7GimMoy6s6vs6mD6wD1K4S7FU82q2xKqYd8GLzc+VmgTt3LjL7R4BCWLpsQQNXsbaBShChdEXPgfgiRp1RQglCZpitFpDW/zXKZqBGG89+8SRIO8/PMoVMCajAdK4Q1wbWi3Tb6ffKpXFGpSmxvIa2h9bcJwtebU4QQdeV0HEMb4gthr5sFZf8kmm9f15L3Nmkmedmaf4w+suzvW1w2JpnCu6Z8WWcU/lhhC8j/+2jhCKc3EWBzCnhY3IyBX75gl5xAmzRl9bbysI9Lx7fV3VlXU+vj6krY503y1+4Xw== simone"
+
+
+- hosts: web_servers
+  become: true
+  tasks:
+
+  - name: install apache and php for Ubuntu servers
+    tags: apache,apache2,ubuntu
+    apt:
+      name:
+        - apache2
+        - libapache2-mod-php
+      state: latest
+    when: ansible_distribution == "Ubuntu"
+
+  - name: install apache and php for CentOS servers
+    tags: apache,centos,httpd
+    dnf:
+      name:
+        - httpd
+        - php
+      state: latest
+    when: ansible_distribution == "CentOS"
+
+  - name: start httpd (CentOS)
+    tags: apache,centos,httpd
+    service:
+      name: httpd
+      state: started
+      enabled: yes
+    when: ansible_distribution == "CentOS"
+
+  - name: change e-mail address for admin
+    tags: apache,centos,httpd
+    lineinfile:
+      path: /etc/httpd/conf/httpd.conf
+      regexp: '^ServerAdmin'
+      line: ServerAdmin asad@gmail.com
+    when: ansible_distribution == "CentOS"
+    register: httpd
+
+  - name: restart httpd (CentOS)
+    tags: apache,centos,httpd
+    service:
+      name: httpd
+      state: restarted
+    when: httpd.changed
+
+  - name: copy default html files for site
+    tags: apache,apache2,httpd
+    copy:
+      src: default_site.html
+      dest: /var/www/html/index.html
+      owner: root
+      group: root
+      mode: 0644
+
+- hosts: db_servers
+  become: true
+  tasks:
+
+  - name: install mariadb package (CentOS)
+    tags: centos,db,mariadb
+    dnf:
+      name: mariadb
+      state: latest
+    when: ansible_distribution == "CentOS"
+
+  - name: install mariadb package (Ubuntu)
+    tags: db,mariadb,ubuntu
+    apt:
+      name: mariadb-server
+      state: latest
+    when: ansible_distribution == "Ubuntu"
+
+
+- hosts: file_servers
+  become: true
+  tasks:
+    
+  - name: install samba package
+    tags: samba
+    package:
+      name: samba
+      state: latest
